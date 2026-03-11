@@ -44,6 +44,7 @@ if __name__ == '__main__':
         import datetime
 
         with open(os.path.join(OUTPUT_DIR, datetime.datetime.now().strftime('%Y%m%d%H%M')+'.txt'), 'w+', encoding='utf8') as stats_f:
+            stats_f.write('\t'.join(['path', 'sent_num', 'hy_words', 'ru_words']) + '\n')
             for f in files:
                 FILEPATH = os.path.join(INPUT_DIR, f)
                 print(FILEPATH+'...')
