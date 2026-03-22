@@ -83,7 +83,7 @@ class XLSX2XML:
         # correct some OCR in Armenian text
         sent = sent.translate(AM_PUNCT_CORRECTIONS)
 
-        self.am_word_count += len(re.findall(r'\s', sent)) + 1
+        self.am_word_count += len(re.findall(r'\s+', sent)) + 1
 
         if re.search(r'\w', sent):
             se.text = ''
@@ -188,7 +188,7 @@ class XLSX2XML:
             f.write('</body>\n')
             f.write('</root>\n')
 
-            self.stats = (self.FILEPATH, str(sent_id), str(self.am_word_count + self.ru_word_count))
+            self.stats = (self.FILEPATH, str(sent_id), str(self.am_word_count), str(self.ru_word_count))
 
         # if move_processed:
         #     os.replace(self.FILEPATH, os.path.join(self.OUTPUT_PATH, self.FILENAME))
