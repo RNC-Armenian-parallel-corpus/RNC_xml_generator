@@ -11,9 +11,6 @@ import eanc2rnc_tag_converter as tag_converter
 import time
 import functools
 
-analyzer = EasternArmenianAnalyzer()
-print('Analyzer imported')
-
 def timer(func):
     @functools.wraps(func)
     def _timer(*args, **kwargs):
@@ -25,11 +22,47 @@ def timer(func):
 
     return _timer
 
-AM_PUNCT_CORRECTIONS = str.maketrans({':': '։', '`': '՝'}) # заменяем знаки пунктуации
+def translit(word):
+    return hy_translit.transliterate_MEA(word)
+
+class FasterAnalyzer:
+    # uses Eastern Armenian Uniparser, adds caching for speed
+
+    def __init__(self):
+        self.parser = EasternArmenianAnalyzer()
+        print('Analyzer imported')
+        self.__cache = {}
+
+    def analyze_words(self, word):
+        # analyzes a word, returns analyses, tags separated by comma
+        
+        if word in self.__cache:
+        # check if already processed and in cache
+            return self.__cache[word]
+        
+        else:
+            # process with analyzer
+            analyses = self.parser.analyze_words(word, format='json')
+            
+            for ana in analyses:
+                if ana.get('gramm', ''):
+                    # convert tags from EANC to RNC format by calling special module
+                    # use new RNC format for tag separator - simple space
+                    ana['gramm'] = tag_converter.convert_tags(','.join(ana.get('gramm', ''))).replace(',',' ')
+                    # note that the tags are first joined by comma, then converted and then separeated by space
+                    # this is suboptimal (could be fixed in the converter, for example)
+                if ana.get('lemma', ''):
+                    ana['lemma_translit'] = translit(ana['lemma']) # transliterate the lemma
+            
+            # add to cache
+            self.__cache[word] = analyses
+            return analyses
+
+analyzer = FasterAnalyzer()
 
 class XLSX2XML:
 
-    def __init__(self, filename, col_mapping, input_path, output_path, ru_if_annotate = False):
+    def __init__(self, filename, col_mapping, input_path, output_path):
         self.FILENAME = filename
         self.INPUT_PATH = input_path
         self.OUTPUT_PATH = output_path
@@ -37,8 +70,9 @@ class XLSX2XML:
 
         self.LANG_COLUMNS = col_mapping
         self.am_tokenize = razdel.tokenize
+        
         # self.ru_tokenize = razdel.tokenize
-        self.ru_if_annotate = ru_if_annotate
+        # self.ru_if_annotate = ru_if_annotate # can be added as an argument
 
         self.header = self.load_aligned()
 
@@ -59,10 +93,6 @@ class XLSX2XML:
     def convolve_whitespace(text):
         return re.sub(r'[\s(\xa0)]+', ' ', text)
 
-    @staticmethod
-    def translit(word):
-        return hy_translit.transliterate_MEA(word)
-
     def annotate_ru(self, se, sent, if_annotate=False):
         self.ru_word_count += len(re.findall(r'\s', sent)) + 1
         if re.search(r'\w', sent):
@@ -80,10 +110,12 @@ class XLSX2XML:
             # return ''.join(tagged)  # has not been tested
 
     def annotate_am(self, se, sent):
-        # correct some OCR in Armenian text
+        
+        # correct some punctuation OCR in Armenian text
+        AM_PUNCT_CORRECTIONS = str.maketrans({':': '։', '`': '՝'}) # заменяем знаки пунктуации
         sent = sent.translate(AM_PUNCT_CORRECTIONS)
 
-        self.am_word_count += len(re.findall(r'\s+', sent)) + 1
+        self.am_word_count += len(re.findall(r'\s', sent)) + 1
 
         if re.search(r'\w', sent):
             se.text = ''
@@ -99,29 +131,28 @@ class XLSX2XML:
                 if re.search(r'\w', t):
 
                     w = ET.SubElement(se, "w")
-                    tr = self.translit(t)
+                    # transliterate the token
+                    tr = translit(t)
                     if tr:
                         w.set('translit', tr)
 
-                    analysis = list(filter(lambda a: a['lemma'] or a['gramm'], analyzer.analyze_words(words=t, format='json')))
+                    analysis = list(filter(lambda a: a['lemma'] or a['gramm'], analyzer.analyze_words(word=t)))
                     # если есть разбор и он не для числа
                     if analysis and not re.search(r'[0-9]', t):
                         for a in analysis:
 
-                            # заменяем теги в грамматическом разборе на те, что используются в НКРЯ
-                            gram_ana = tag_converter.convert_tags(','.join(a.get('gramm', ''))) # получается, что теги сначала слепляются через запятую, а потом разлепляются функцией, что suboptimal, но это проблемы нас в будущем
-
                             ana = ET.SubElement(w, "ana",)
+                            
                             ana.set('lex', a.get('lemma', ''))
-                            ana.set('gr', gram_ana.replace(',',' '))
+                            ana.set('gr', a.get('gramm', ''))
                             ana.set('transl', a.get('trans_en',''))
-                            ana.set('lex_translit', self.translit(a.get('lemma','')))
+                            ana.set('lex_translit', a.get('lemma_translit', ''))
 
                         ana.tail = t
                     # если анализа нет или токен -- число
                     else:
                         # w = ET.SubElement(se, "w")
-                        # w.set('translit', self.translit(t))
+                        # w.set('translit', translit(t))
                         w.text = t
 
                     last_word = w
