@@ -115,7 +115,7 @@ class XLSX2XML:
         AM_PUNCT_CORRECTIONS = str.maketrans({':': '։', '`': '՝'}) # заменяем знаки пунктуации
         sent = sent.translate(AM_PUNCT_CORRECTIONS)
 
-        self.am_word_count += len(re.findall(r'\s', sent)) + 1
+        self.am_word_count += len(re.findall(r'\s+', sent)) + 1
 
         if re.search(r'\w', sent):
             se.text = ''
