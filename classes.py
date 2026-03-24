@@ -140,6 +140,9 @@ class XLSX2XML:
                     # если есть разбор и он не для числа
                     if analysis and not re.search(r'[0-9]', t):
                         for a in analysis:
+                          
+                            if a['gramm'] == []: # sometimes the parser returns this
+                                a['gramm'] = ''
 
                             ana = ET.SubElement(w, "ana",)
                             
