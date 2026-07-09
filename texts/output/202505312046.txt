@@ -1,1 +1,2 @@
+path	sent_num	hy_words	ru_words
 texts/input/axe.xlsx	23	201	220
